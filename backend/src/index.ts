@@ -1,11 +1,16 @@
-import express from "express";
-const app = express();
-const PORT = 3000;
+import http from "http";
+import SocketService from "./services/socket";
 
-app.get("/", (req, res) => {
-  res.send("Backend is working fine");
-});
+async function init() {
+  const socketService = new SocketService();
+  const httpServer = http.createServer();
+  const PORT = process.env.port ? process.env.port : 8000;
 
-app.listen(PORT, () => {
-  console.log(`Example app listening on PORT ${PORT}`);
-});
+  socketService.io.attach(httpServer);
+
+  httpServer.listen(PORT, () => console.log("Backend is listening"));
+
+  socketService.initListeners();
+}
+
+init();
