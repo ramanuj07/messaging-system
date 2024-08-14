@@ -1,9 +1,14 @@
+import express from "express";
 import http from "http";
 import SocketService from "./services/socket";
 
+const app = express();
+
+const httpServer = http.createServer(app);
+
 async function init() {
   const socketService = new SocketService();
-  const httpServer = http.createServer();
+
   const PORT = process.env.port ? process.env.port : 8000;
 
   socketService.io.attach(httpServer);
