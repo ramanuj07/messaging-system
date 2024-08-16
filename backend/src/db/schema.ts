@@ -1,6 +1,7 @@
 import {
   pgTable,
   serial,
+  integer,
   varchar,
   timestamp,
   boolean,
@@ -20,15 +21,15 @@ export const users = pgTable("users", {
 
 export const messages = pgTable("messages", {
   id: serial("id").primaryKey(),
-  senderId: serial("sender_id")
+  senderId: integer("sender_id")
     .references(() => users.id)
     .notNull(),
-  recipientId: serial("recipient_id")
+  recipientId: integer("recipient_id")
     .references(() => users.id)
     .notNull(),
   content: text("content").notNull(),
   timestamp: timestamp("timestamp").defaultNow().notNull(),
   read: boolean("read").default(false).notNull(),
   fileUrl: varchar("fileUrl", { length: 255 }),
-  fileType: fileTypeEnum("fileType").nullable(),
+  fileType: fileTypeEnum("fileType"),
 });

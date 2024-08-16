@@ -1,6 +1,6 @@
 import { Server, Socket } from "socket.io";
 import { db } from "../db/db";
-import { messages, users } from "../db/schema";
+import { messages } from "../db/schema";
 import { eq, and, lt, desc } from "drizzle-orm";
 
 interface User {
@@ -9,14 +9,14 @@ interface User {
 }
 
 interface Message {
-  id: string | number;
-  senderId: string | number;
-  recipientId: string | number;
+  id: string;
+  senderId: string;
+  recipientId: string;
   content: string;
   timestamp: Date;
   read: boolean;
-  fileUrl?: string;
-  fileType?: "image" | "video";
+  fileUrl?: string | null;
+  fileType?: "image" | "video" | null;
 }
 
 class SocketService {
@@ -68,16 +68,33 @@ class SocketService {
         socket.to(recipientId).emit("chat:stopTyping", { senderId });
       });
 
-      socket.on("message:read", async ({ messageId, recipientId }) => {
-        const updatedMessage = await this.markMessageAsRead(messageId);
-        if (updatedMessage) {
-          io.to(recipientId).emit("message:read", { messageId });
+      socket.on(
+        "message:read",
+        async ({
+          messageId,
+          recipientId,
+        }: {
+          messageId: string;
+          recipientId: string;
+        }) => {
+          const updatedMessage = await this.markMessageAsRead(messageId);
+          if (updatedMessage) {
+            io.to(recipientId).emit("message:read", { messageId });
+          }
         }
-      });
+      );
 
       socket.on(
         "messages:get",
-        async ({ userId, recipientId, lastMessageId }) => {
+        async ({
+          userId,
+          recipientId,
+          lastMessageId,
+        }: {
+          userId: string;
+          recipientId: string;
+          lastMessageId: string | null;
+        }) => {
           const olderMessages = await this.getOlderMessages(
             userId,
             recipientId,
@@ -99,19 +116,13 @@ class SocketService {
       const [savedMessage] = await db
         .insert(messages)
         .values({
-          senderId:
-            typeof message.senderId === "string"
-              ? parseInt(message.senderId)
-              : message.senderId,
-          recipientId:
-            typeof message.recipientId === "string"
-              ? parseInt(message.recipientId)
-              : message.recipientId,
+          senderId: parseInt(message.senderId),
+          recipientId: parseInt(message.recipientId),
           content: message.content,
           timestamp: message.timestamp,
           read: message.read,
-          fileUrl: message.fileUrl,
-          fileType: message.fileType,
+          fileUrl: message.fileUrl || null,
+          fileType: message.fileType || null,
         })
         .returning();
       console.log("Message saved to database", savedMessage);
@@ -128,24 +139,15 @@ class SocketService {
   }
 
   private sendMessage(message: Message) {
-    const recipientId =
-      typeof message.recipientId === "number"
-        ? message.recipientId.toString()
-        : message.recipientId;
-    this._io.to(recipientId).emit("chat:message", message);
+    this._io.to(message.recipientId).emit("chat:message", message);
   }
 
-  private async markMessageAsRead(messageId: string | number) {
+  private async markMessageAsRead(messageId: string) {
     try {
       const [updatedMessage] = await db
         .update(messages)
         .set({ read: true })
-        .where(
-          eq(
-            messages.id,
-            typeof messageId === "string" ? parseInt(messageId) : messageId
-          )
-        )
+        .where(eq(messages.id, parseInt(messageId)))
         .returning();
       console.log("Message marked as read", updatedMessage);
 
@@ -162,37 +164,32 @@ class SocketService {
   }
 
   private async getOlderMessages(
-    userId: string | number,
-    recipientId: string | number,
-    lastMessageId: string | number | null,
+    userId: string,
+    recipientId: string,
+    lastMessageId: string | null,
     limit: number = 20
   ) {
     try {
       const baseQuery = {
-        senderId: typeof userId === "string" ? parseInt(userId) : userId,
-        recipientId:
-          typeof recipientId === "string" ? parseInt(recipientId) : recipientId,
+        senderId: parseInt(userId),
+        recipientId: parseInt(recipientId),
       };
 
-      let query = db
-        .select()
-        .from(messages)
-        .where(
-          and(
-            eq(messages.senderId, baseQuery.senderId),
-            eq(messages.recipientId, baseQuery.recipientId)
-          )
-        )
-        .orderBy(desc(messages.timestamp))
-        .limit(limit);
+      let conditions = and(
+        eq(messages.senderId, baseQuery.senderId),
+        eq(messages.recipientId, baseQuery.recipientId)
+      );
 
       if (lastMessageId) {
-        const lastId =
-          typeof lastMessageId === "string"
-            ? parseInt(lastMessageId)
-            : lastMessageId;
-        query = query.where(lt(messages.id, lastId));
+        conditions = and(conditions, lt(messages.id, parseInt(lastMessageId)));
       }
+
+      const query = db
+        .select()
+        .from(messages)
+        .where(conditions)
+        .orderBy(desc(messages.timestamp))
+        .limit(limit);
 
       const olderMessages = await query;
 
