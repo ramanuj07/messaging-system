@@ -7,7 +7,26 @@ const AllUsersContainer = () => {
     <div>
       <SearchBar />
       <SortingChatFilters />
-      <UserChat />
+      <UserChat
+        profilePic="https://via.placeholder.com/150"
+        name="John Doe"
+        lastMessage="Hey! How are you doing?"
+        lastMessageTime="12:45 PM"
+      />
+
+      <UserChat
+        profilePic="https://via.placeholder.com/150"
+        name="John Doe"
+        lastMessage="Hey! How are you doing?"
+        lastMessageTime="12:45 PM"
+      />
+
+      <UserChat
+        profilePic="https://via.placeholder.com/150"
+        name="John Doe"
+        lastMessage="Hey! How are you doing?"
+        lastMessageTime="12:45 PM"
+      />
     </div>
   );
 };

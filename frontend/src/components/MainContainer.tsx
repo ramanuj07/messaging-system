@@ -4,10 +4,13 @@ import PersonalChatContainer from "./PersonalChatContainer";
 
 const MainContainer = () => {
   return (
-    <div>
-      <Header />
-      <div className="grid grid-cols-12">
-        <div className="col-span-4">
+    <div className="h-screen">
+      <div className="flex-shrink-0">
+        <Header />
+      </div>
+
+      <div className="grid grid-cols-12 h-full">
+        <div className="col-span-4 border-r border-gray-300">
           <AllUsersContainer />
         </div>
 
