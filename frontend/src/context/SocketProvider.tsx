@@ -1,6 +1,11 @@
 import React, { useCallback, useContext, useEffect, useState } from "react";
 import { io, Socket } from "socket.io-client";
 
+interface User {
+  id: string;
+  username: string;
+}
+
 interface SocketProviderProps {
   children?: React.ReactNode;
 }
@@ -19,6 +24,9 @@ interface Message {
 interface ISocketContext {
   sendMessage: (msg: Omit<Message, "id" | "timestamp" | "read">) => void;
   messages: Message[];
+  users: User[];
+  currentUser: User | null;
+  login: (user: User) => void;
 }
 
 const SocketContext = React.createContext<ISocketContext | null>(null);
@@ -32,6 +40,8 @@ export const useSocket = () => {
 export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
   const [socket, setSocket] = useState<Socket>();
   const [messages, setMessages] = useState<Message[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   const sendMessage: ISocketContext["sendMessage"] = useCallback(
     (msg) => {
@@ -53,20 +63,54 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
     setMessages((prev) => [...prev, msg]);
   }, []);
 
+  const login = useCallback(
+    (user: User) => {
+      setCurrentUser(user);
+      if (socket) {
+        socket.emit("user:join", user);
+      }
+    },
+    [socket]
+  );
+
+  const onUserLoggedIn = useCallback((newUser: User) => {
+    setUsers((prevUsers) => {
+      if (!prevUsers.some((user) => user.id === newUser.id)) {
+        return [...prevUsers, newUser];
+      }
+      return prevUsers;
+    });
+  }, []);
+
+  const onNewUser = useCallback((newUser: User) => {
+    setUsers((prevUsers) => {
+      if (!prevUsers.some((user) => user.id === newUser.id)) {
+        return [...prevUsers, newUser];
+      }
+      return prevUsers;
+    });
+  }, []);
+
   useEffect(() => {
     const _socket = io("http://localhost:8000");
     _socket.on("chat:message", onMessageReceived);
+    _socket.on("user:loggedIn", onUserLoggedIn);
+    _socket.on("user:new", onNewUser);
 
     setSocket(_socket);
 
     return () => {
       _socket.off("chat:message", onMessageReceived);
+      _socket.off("user:loggedIn", onUserLoggedIn);
+      _socket.off("user:new", onNewUser);
       _socket.disconnect();
     };
-  }, [onMessageReceived]);
+  }, [onMessageReceived, onUserLoggedIn, onNewUser]);
 
   return (
-    <SocketContext.Provider value={{ sendMessage, messages }}>
+    <SocketContext.Provider
+      value={{ sendMessage, messages, users, currentUser, login }}
+    >
       {children}
     </SocketContext.Provider>
   );

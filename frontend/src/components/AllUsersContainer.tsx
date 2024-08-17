@@ -1,32 +1,25 @@
+import React from "react";
+import { useSocket } from "../context/SocketProvider";
 import SearchBar from "./SearchBar";
 import SortingChatFilters from "./SortingChatFilters";
 import UserChat from "./UserChat";
 
-const AllUsersContainer = () => {
+const AllUsersContainer: React.FC = () => {
+  const { users } = useSocket();
+
   return (
     <div>
       <SearchBar />
       <SortingChatFilters />
-      <UserChat
-        profilePic="https://via.placeholder.com/150"
-        name="John Doe"
-        lastMessage="Hey! How are you doing?"
-        lastMessageTime="12:45 PM"
-      />
-
-      <UserChat
-        profilePic="https://via.placeholder.com/150"
-        name="John Doe"
-        lastMessage="Hey! How are you doing?"
-        lastMessageTime="12:45 PM"
-      />
-
-      <UserChat
-        profilePic="https://via.placeholder.com/150"
-        name="John Doe"
-        lastMessage="Hey! How are you doing?"
-        lastMessageTime="12:45 PM"
-      />
+      {users.map((user) => (
+        <UserChat
+          key={user.id}
+          profilePic="https://via.placeholder.com/150"
+          name={user.username}
+          lastMessage="No messages yet"
+          lastMessageTime=""
+        />
+      ))}
     </div>
   );
 };

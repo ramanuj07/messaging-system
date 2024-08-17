@@ -10,7 +10,17 @@ interface ChatMessage {
   content: string;
 }
 
-const ChatInterface: React.FC = () => {
+interface ChatInterfaceProps {
+  senderId: string;
+  recipientId: string;
+  recipientName: string;
+}
+
+const ChatInterface: React.FC<ChatInterfaceProps> = ({
+  senderId,
+  recipientId,
+  recipientName,
+}) => {
   const { sendMessage, messages } = useSocket();
   const [inputMessage, setInputMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -30,14 +40,14 @@ const ChatInterface: React.FC = () => {
       if (inputMessage.trim() === "") return;
 
       sendMessage({
-        senderId: "1",
-        recipientId: "2",
+        senderId: senderId,
+        recipientId: recipientId,
         content: inputMessage.trim(),
       });
 
       setInputMessage("");
     },
-    [inputMessage, sendMessage]
+    [inputMessage, sendMessage, senderId, recipientId]
   );
 
   const handleFileUpload = useCallback(() => {
@@ -86,7 +96,7 @@ const ChatInterface: React.FC = () => {
           className="w-10 h-10 rounded-full mr-3"
         />
         <div>
-          <h2 className="font-semibold text-xs">User Name</h2>
+          <h2 className="font-semibold text-xs">{recipientName}</h2>
           <p className="text-xs text-gray-500">Online</p>
         </div>
       </div>

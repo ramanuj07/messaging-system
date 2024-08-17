@@ -43,6 +43,7 @@ class SocketService {
       socket.on("user:join", (user: User) => {
         this.connectedUsers.set(socket.id, user);
         this.updateOnlineUsers();
+        socket.broadcast.emit("user:new", user);
         console.log(`User joined: ${user.username}`);
       });
 
@@ -114,6 +115,15 @@ class SocketService {
         }
       );
     });
+  }
+
+  public handleUserLogin(user: User) {
+    this._io.emit("user:loggedIn", user);
+    console.log(`User logged in: ${user.username}`);
+  }
+
+  public getAllConnectedUsers(): User[] {
+    return Array.from(this.connectedUsers.values());
   }
 
   private updateOnlineUsers() {

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { useSocket } from "../context/SocketProvider";
 
 axios.defaults.withCredentials = true;
 
@@ -8,6 +9,7 @@ const Login: React.FC = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const navigate = useNavigate();
+  const { login } = useSocket();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -17,6 +19,10 @@ const Login: React.FC = () => {
         password,
       });
       localStorage.setItem("token", response.data.token);
+      login({
+        id: response.data.user.id.toString(),
+        username: response.data.user.username,
+      });
       navigate("/chats");
     } catch (error) {
       console.error("Login failed:", error);
