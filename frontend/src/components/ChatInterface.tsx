@@ -30,8 +30,8 @@ const ChatInterface: React.FC = () => {
       if (inputMessage.trim() === "") return;
 
       sendMessage({
-        senderId: "user", // Replace with actual user ID
-        recipientId: "recipient", // Replace with actual recipient ID
+        senderId: "1",
+        recipientId: "2",
         content: inputMessage.trim(),
       });
 

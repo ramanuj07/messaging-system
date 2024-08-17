@@ -4,6 +4,8 @@ import { db } from "../db/db";
 import { users } from "../db/schema";
 import { eq } from "drizzle-orm";
 
+const JWT_SECRET = process.env.JWT_SECRET;
+
 export const register = async (
   username: string,
   email: string,
@@ -19,7 +21,9 @@ export const register = async (
     })
     .returning();
 
-  const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET as string, {
+  console.log(JWT_SECRET);
+
+  const token = jwt.sign({ id: user.id }, JWT_SECRET as string, {
     expiresIn: "1h",
   });
   return {
@@ -39,7 +43,7 @@ export const login = async (email: string, password: string) => {
     throw new Error("Invalid password");
   }
 
-  const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET as string, {
+  const token = jwt.sign({ id: user.id }, JWT_SECRET as string, {
     expiresIn: "1h",
   });
   return {

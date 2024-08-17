@@ -1,19 +1,25 @@
-import { RouterProvider, createBrowserRouter } from "react-router-dom";
+import React from "react";
+import {
+  BrowserRouter as Router,
+  Route,
+  Routes,
+  Navigate,
+} from "react-router-dom";
+import Register from "./Register";
+import Login from "./Login";
 import MainContainer from "./MainContainer";
 
-const Body = () => {
-  const appRouter = createBrowserRouter([
-    {
-      path: "/",
-      element: <MainContainer />,
-    },
-  ]);
-
+const App: React.FC = () => {
   return (
-    <div>
-      <RouterProvider router={appRouter} />
-    </div>
+    <Router>
+      <Routes>
+        <Route path="/register" element={<Register />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/chats" element={<MainContainer />} />
+        <Route path="/" element={<Navigate to="/login" replace />} />
+      </Routes>
+    </Router>
   );
 };
 
-export default Body;
+export default App;
