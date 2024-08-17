@@ -1,40 +1,84 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import AttachmentIcon from "../assets/AttachmentIcon.png";
 import SendIcon from "../assets/SendIcon.png";
 import DefaultProfilePic from "../assets/DefaultProfilePic.jpg";
 import { useSocket } from "../context/SocketProvider";
 
-const ChatInterface = () => {
+interface ChatMessage {
+  id: string;
+  senderId: string;
+  content: string;
+}
+
+const ChatInterface: React.FC = () => {
   const { sendMessage, messages } = useSocket();
   const [inputMessage, setInputMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, []);
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, scrollToBottom]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  const handleSendMessage = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault();
+      if (inputMessage.trim() === "") return;
 
-  const handleSendMessage = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (inputMessage.trim() === "") return;
+      sendMessage({
+        senderId: "user", // Replace with actual user ID
+        recipientId: "recipient", // Replace with actual recipient ID
+        content: inputMessage.trim(),
+      });
 
-    sendMessage({
-      senderId: "user", // Replace with actual user ID
-      recipientId: "recipient", // Replace with actual recipient ID
-      text: inputMessage.trim(),
-      fileUrl: null,
-      fileType: null,
-    });
+      setInputMessage("");
+    },
+    [inputMessage, sendMessage]
+  );
 
-    setInputMessage("");
-  };
+  const handleFileUpload = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        // Handle file upload logic here
+        console.log("File selected:", file.name);
+      }
+    },
+    []
+  );
+
+  const renderMessage = useCallback(
+    (message: ChatMessage) => (
+      <div
+        key={message.id}
+        className={`mb-4 ${
+          message.senderId === "user" ? "text-right" : "text-left"
+        }`}
+      >
+        <div
+          className={`inline-block p-2 text-xs rounded-lg ${
+            message.senderId === "user"
+              ? "bg-[#EF6144] text-white"
+              : "bg-gray-100 text-gray-800"
+          }`}
+        >
+          {message.content}
+        </div>
+      </div>
+    ),
+    []
+  );
 
   return (
     <div className="flex flex-col h-full bg-white">
-      {/* User Profile Header */}
       <div className="bg-gray-100 p-2 flex items-center border-b border-gray-200">
         <img
           src={DefaultProfilePic}
@@ -47,30 +91,11 @@ const ChatInterface = () => {
         </div>
       </div>
 
-      {/* Chat Messages */}
       <div className="flex-grow overflow-y-auto p-4">
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={`mb-4 ${
-              message.senderId === "user" ? "text-right" : "text-left"
-            }`}
-          >
-            <div
-              className={`inline-block p-2 text-xs rounded-lg ${
-                message.senderId === "user"
-                  ? "bg-[#EF6144] text-white"
-                  : "bg-gray-100 text-gray-800"
-              }`}
-            >
-              {message.text}
-            </div>
-          </div>
-        ))}
+        {messages.map(renderMessage)}
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Form */}
       <form
         onSubmit={handleSendMessage}
         className="bg-white p-4 border-t border-gray-200"
@@ -84,7 +109,11 @@ const ChatInterface = () => {
             placeholder="Type your message here"
           />
           <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center space-x-2">
-            <button type="button" className="focus:outline-none">
+            <button
+              type="button"
+              onClick={handleFileUpload}
+              className="focus:outline-none"
+            >
               <img
                 src={AttachmentIcon}
                 alt="attachment-icon"
@@ -97,6 +126,13 @@ const ChatInterface = () => {
           </div>
         </div>
       </form>
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        className="hidden"
+        accept="image/*,video/*"
+      />
     </div>
   );
 };

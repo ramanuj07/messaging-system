@@ -5,23 +5,12 @@ interface SocketProviderProps {
   children?: React.ReactNode;
 }
 
-interface ServerMessage {
-  id: number;
-  senderId: number;
-  recipientId: number;
-  content: string;
-  timestamp: string;
-  read: boolean;
-  fileUrl?: string | null;
-  fileType?: "image" | "video" | null;
-}
-
 interface Message {
   id: string;
   senderId: string;
   recipientId: string;
-  text: string;
-  timestamp: Date;
+  content: string;
+  timestamp: string;
   read: boolean;
   fileUrl?: string | null;
   fileType?: "image" | "video" | null;
@@ -36,7 +25,7 @@ const SocketContext = React.createContext<ISocketContext | null>(null);
 
 export const useSocket = () => {
   const state = useContext(SocketContext);
-  if (!state) throw new Error(`state is undefined`);
+  if (!state) throw new Error(`Socket context is undefined`);
   return state;
 };
 
@@ -49,39 +38,19 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
       if (socket) {
         const newMessage: Message = {
           id: Date.now().toString(),
-          timestamp: new Date(),
+          timestamp: new Date().toISOString(),
           read: false,
           ...msg,
         };
-        const messageToSend: ServerMessage = {
-          id: parseInt(newMessage.id),
-          senderId: parseInt(newMessage.senderId),
-          recipientId: parseInt(newMessage.recipientId),
-          content: newMessage.text, // Convert 'text' to 'content' for the server
-          timestamp: newMessage.timestamp.toISOString(),
-          read: newMessage.read,
-          fileUrl: newMessage.fileUrl,
-          fileType: newMessage.fileType,
-        };
-        socket.emit("chat:message", messageToSend);
+        socket.emit("chat:message", newMessage);
         setMessages((prev) => [...prev, newMessage]);
       }
     },
     [socket]
   );
 
-  const onMessageReceived = useCallback((msg: ServerMessage) => {
-    const receivedMessage: Message = {
-      id: msg.id.toString(),
-      senderId: msg.senderId.toString(),
-      recipientId: msg.recipientId.toString(),
-      text: msg.content,
-      timestamp: new Date(msg.timestamp),
-      read: msg.read,
-      fileUrl: msg.fileUrl,
-      fileType: msg.fileType,
-    };
-    setMessages((prev) => [...prev, receivedMessage]);
+  const onMessageReceived = useCallback((msg: Message) => {
+    setMessages((prev) => [...prev, msg]);
   }, []);
 
   useEffect(() => {
@@ -93,7 +62,6 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
     return () => {
       _socket.off("chat:message", onMessageReceived);
       _socket.disconnect();
-      setSocket(undefined);
     };
   }, [onMessageReceived]);
 
