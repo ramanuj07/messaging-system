@@ -1,9 +1,12 @@
 import Body from "./components/Body";
+import { SocketProvider } from "./context/SocketProvider";
 
 function App() {
   return (
     <div>
-      <Body />
+      <SocketProvider>
+        <Body />
+      </SocketProvider>
     </div>
   );
 }

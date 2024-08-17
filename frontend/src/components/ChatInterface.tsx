@@ -1,18 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
 import AttachmentIcon from "../assets/AttachmentIcon.png";
 import SendIcon from "../assets/SendIcon.png";
-import DefaultProfilePic from "../assets/DefaultProfilePic.jpg"; // Add a default profile picture
-
-interface Message {
-  id: number;
-  text: string;
-  sender: "user" | "other";
-}
+import DefaultProfilePic from "../assets/DefaultProfilePic.jpg";
+import { useSocket } from "../context/SocketProvider";
 
 const ChatInterface = () => {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const { sendMessage, messages } = useSocket();
   const [inputMessage, setInputMessage] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -27,26 +21,15 @@ const ChatInterface = () => {
     e.preventDefault();
     if (inputMessage.trim() === "") return;
 
-    const newMessage: Message = {
-      id: messages.length + 1,
-      text: inputMessage,
-      sender: "user",
-    };
+    sendMessage({
+      senderId: "user", // Replace with actual user ID
+      recipientId: "recipient", // Replace with actual recipient ID
+      text: inputMessage.trim(),
+      fileUrl: null,
+      fileType: null,
+    });
 
-    setMessages([...messages, newMessage]);
     setInputMessage("");
-
-    // Simulating a reply from the other user
-    setIsTyping(true);
-    setTimeout(() => {
-      const replyMessage: Message = {
-        id: messages.length + 2,
-        text: "This is a simulated reply.",
-        sender: "other",
-      };
-      setMessages((prevMessages) => [...prevMessages, replyMessage]);
-      setIsTyping(false);
-    }, 2000);
   };
 
   return (
@@ -60,9 +43,7 @@ const ChatInterface = () => {
         />
         <div>
           <h2 className="font-semibold text-xs">User Name</h2>
-          <p className="text-xs text-gray-500">
-            {isTyping ? "Typing..." : "Online"}
-          </p>
+          <p className="text-xs text-gray-500">Online</p>
         </div>
       </div>
 
@@ -72,12 +53,12 @@ const ChatInterface = () => {
           <div
             key={message.id}
             className={`mb-4 ${
-              message.sender === "user" ? "text-right" : "text-left"
+              message.senderId === "user" ? "text-right" : "text-left"
             }`}
           >
             <div
               className={`inline-block p-2 text-xs rounded-lg ${
-                message.sender === "user"
+                message.senderId === "user"
                   ? "bg-[#EF6144] text-white"
                   : "bg-gray-100 text-gray-800"
               }`}

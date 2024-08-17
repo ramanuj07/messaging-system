@@ -27,8 +27,8 @@ class SocketService {
     console.log("Initialised socket server");
     this._io = new Server({
       cors: {
+        allowedHeaders: ["*"],
         origin: "*",
-        methods: ["GET", "POST"],
       },
     });
   }
@@ -54,9 +54,19 @@ class SocketService {
 
       socket.on("chat:message", async (message: Message) => {
         console.log("New message received", message);
-        const savedMessage = await this.saveMessage(message);
-        if (savedMessage) {
-          this.sendMessage(savedMessage);
+        try {
+          const savedMessage = await this.saveMessage(message);
+          if (savedMessage) {
+            this.sendMessage(savedMessage);
+          } else {
+            socket.emit("error", "Failed to save message");
+          }
+        } catch (error) {
+          console.error("Error in chat:message handler:", error);
+          socket.emit(
+            "error",
+            "An error occurred while processing the message"
+          );
         }
       });
 
@@ -111,7 +121,7 @@ class SocketService {
     this._io.emit("users:online", onlineUsers);
   }
 
-  private async saveMessage(message: Message) {
+  private async saveMessage(message: Message): Promise<Message | null> {
     try {
       const [savedMessage] = await db
         .insert(messages)
@@ -119,18 +129,24 @@ class SocketService {
           senderId: parseInt(message.senderId),
           recipientId: parseInt(message.recipientId),
           content: message.content,
-          timestamp: message.timestamp,
-          read: message.read,
+          timestamp: new Date(),
+          read: false,
           fileUrl: message.fileUrl || null,
           fileType: message.fileType || null,
         })
         .returning();
+
       console.log("Message saved to database", savedMessage);
+
       return {
-        ...savedMessage,
         id: savedMessage.id.toString(),
         senderId: savedMessage.senderId.toString(),
         recipientId: savedMessage.recipientId.toString(),
+        content: savedMessage.content,
+        timestamp: savedMessage.timestamp,
+        read: savedMessage.read,
+        fileUrl: savedMessage.fileUrl,
+        fileType: savedMessage.fileType,
       };
     } catch (error) {
       console.error("Error saving message to database", error);
