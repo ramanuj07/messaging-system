@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+} from "react";
 import AttachmentIcon from "../assets/AttachmentIcon.png";
 import SendIcon from "../assets/SendIcon.png";
 import DefaultProfilePic from "../assets/DefaultProfilePic.jpg";
@@ -20,164 +26,197 @@ interface ChatInterfaceProps {
   recipientName: string;
 }
 
-const ChatInterface: React.FC<ChatInterfaceProps> = ({
-  senderId,
-  recipientId,
-  recipientName,
-}) => {
-  const { sendMessage, messages, readMessages, markMessageAsRead } =
-    useSocket();
-  const [inputMessage, setInputMessage] = useState("");
-  const [localMessages, setLocalMessages] = useState<ChatMessage[]>([]);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+const ChatInterface: React.FC<ChatInterfaceProps> = React.memo(
+  ({ senderId, recipientId, recipientName }) => {
+    const {
+      sendMessage,
+      messages,
+      readMessages,
+      markMessageAsRead,
+      emitTyping,
+      emitStopTyping,
+      isUserTyping,
+    } = useSocket();
+    const [inputMessage, setInputMessage] = useState("");
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const typingTimeoutRef = useRef<number | null>(null);
+    const markedMessagesRef = useRef<Set<string>>(new Set());
 
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, []);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [localMessages, scrollToBottom]);
-
-  useEffect(() => {
-    const filteredMessages = messages.filter(
-      (message) =>
-        (message.senderId === senderId &&
-          message.recipientId === recipientId) ||
-        (message.senderId === recipientId && message.recipientId === senderId)
+    const localMessages = useMemo(
+      () =>
+        messages.filter(
+          (message) =>
+            (message.senderId === senderId &&
+              message.recipientId === recipientId) ||
+            (message.senderId === recipientId &&
+              message.recipientId === senderId)
+        ),
+      [messages, senderId, recipientId]
     );
-    setLocalMessages(filteredMessages);
-  }, [messages, senderId, recipientId]);
 
-  useEffect(() => {
-    const unreadMessages = localMessages.filter(
-      (msg) => msg.senderId === recipientId && !readMessages.has(msg.id)
+    const scrollToBottom = useCallback(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, []);
+
+    useEffect(() => {
+      scrollToBottom();
+    }, [localMessages, scrollToBottom]);
+
+    useEffect(() => {
+      const unreadMessages = localMessages.filter(
+        (msg) =>
+          msg.senderId === recipientId &&
+          !readMessages.has(msg.id) &&
+          !markedMessagesRef.current.has(msg.id)
+      );
+      unreadMessages.forEach((msg) => {
+        markMessageAsRead(msg.id, msg.senderId);
+        markedMessagesRef.current.add(msg.id);
+      });
+    }, [localMessages, recipientId, readMessages, markMessageAsRead]);
+
+    const handleInputChange = useCallback(
+      (e: React.ChangeEvent<HTMLInputElement>) => {
+        setInputMessage(e.target.value);
+        emitTyping(recipientId);
+
+        if (typingTimeoutRef.current !== null) {
+          clearTimeout(typingTimeoutRef.current);
+        }
+        typingTimeoutRef.current = window.setTimeout(() => {
+          emitStopTyping(recipientId);
+        }, 3000);
+      },
+      [emitTyping, emitStopTyping, recipientId]
     );
-    unreadMessages.forEach((msg) => {
-      markMessageAsRead(msg.id, msg.senderId);
-    });
-  }, [localMessages, recipientId, readMessages, markMessageAsRead]);
 
-  const handleSendMessage = useCallback(
-    (e: React.FormEvent) => {
-      e.preventDefault();
-      if (inputMessage.trim() === "") return;
+    const handleSendMessage = useCallback(
+      (e: React.FormEvent) => {
+        e.preventDefault();
+        if (inputMessage.trim() === "") return;
 
-      const newMessage: Omit<ChatMessage, "id" | "timestamp"> = {
-        senderId: senderId,
-        recipientId: recipientId,
-        content: inputMessage.trim(),
-      };
+        const newMessage: Omit<ChatMessage, "id" | "timestamp"> = {
+          senderId: senderId,
+          recipientId: recipientId,
+          content: inputMessage.trim(),
+        };
 
-      sendMessage(newMessage);
-      setInputMessage("");
-    },
-    [inputMessage, sendMessage, senderId, recipientId]
-  );
+        sendMessage(newMessage);
+        setInputMessage("");
+        emitStopTyping(recipientId);
+        if (typingTimeoutRef.current !== null) {
+          clearTimeout(typingTimeoutRef.current);
+        }
+      },
+      [inputMessage, sendMessage, senderId, recipientId, emitStopTyping]
+    );
 
-  const handleFileUpload = useCallback(() => {
-    fileInputRef.current?.click();
-  }, []);
+    const handleFileUpload = useCallback(() => {
+      fileInputRef.current?.click();
+    }, []);
 
-  const handleFileChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) {
-        // Handle file upload logic here
-        console.log("File selected:", file.name);
-      }
-    },
-    []
-  );
+    const handleFileChange = useCallback(
+      (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+          // Handle file upload logic here
+          console.log("File selected:", file.name);
+        }
+      },
+      []
+    );
 
-  const renderMessage = useCallback(
-    (message: ChatMessage) => (
-      <div
-        key={message.id}
-        className={`mb-4 ${
-          message.senderId === senderId ? "text-right" : "text-left"
-        }`}
-      >
+    const renderMessage = useCallback(
+      (message: ChatMessage) => (
         <div
-          className={`inline-block p-2 text-xs rounded-lg ${
-            message.senderId === senderId
-              ? "bg-[#EF6144] text-white"
-              : "bg-gray-100 text-gray-800"
+          key={message.id}
+          className={`mb-4 ${
+            message.senderId === senderId ? "text-right" : "text-left"
           }`}
         >
-          {message.content}
-          {message.senderId === senderId && (
-            <img
-              src={readMessages.has(message.id) ? DoubleTick : SingleTick}
-              alt="message status"
-              className="inline-block ml-1 w-4 h-4"
-            />
-          )}
-        </div>
-      </div>
-    ),
-    [senderId, readMessages]
-  );
-
-  return (
-    <div className="flex flex-col h-full bg-white">
-      <div className="bg-gray-100 p-2 flex items-center border-b border-gray-200">
-        <img
-          src={DefaultProfilePic}
-          alt="Profile"
-          className="w-10 h-10 rounded-full mr-3"
-        />
-        <div>
-          <h2 className="font-semibold text-xs">{recipientName}</h2>
-          <p className="text-xs text-gray-500">Online</p>
-        </div>
-      </div>
-
-      <div className="flex-grow overflow-y-auto p-4">
-        {localMessages.map(renderMessage)}
-        <div ref={messagesEndRef} />
-      </div>
-
-      <form
-        onSubmit={handleSendMessage}
-        className="bg-white p-4 border-t border-gray-200"
-      >
-        <div className="relative">
-          <input
-            type="text"
-            value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
-            className="w-full bg-gray-100 border border-gray-300 rounded-md px-4 py-2 pr-20 focus:outline-none focus:ring-2 focus:ring-[#EF6144] placeholder-gray-400 placeholder:text-xs text-xs"
-            placeholder="Type your message here"
-          />
-          <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center space-x-2">
-            <button
-              type="button"
-              onClick={handleFileUpload}
-              className="focus:outline-none"
-            >
+          <div
+            className={`inline-block p-2 text-xs rounded-lg ${
+              message.senderId === senderId
+                ? "bg-[#EF6144] text-white"
+                : "bg-gray-100 text-gray-800"
+            }`}
+          >
+            {message.content}
+            {message.senderId === senderId && (
               <img
-                src={AttachmentIcon}
-                alt="attachment-icon"
-                className="w-6 h-6"
+                src={readMessages.has(message.id) ? DoubleTick : SingleTick}
+                alt="message status"
+                className="inline-block ml-1 w-4 h-4"
               />
-            </button>
-            <button type="submit" className="focus:outline-none">
-              <img src={SendIcon} alt="send-icon" className="w-6 h-6" />
-            </button>
+            )}
           </div>
         </div>
-      </form>
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleFileChange}
-        className="hidden"
-        accept="image/*,video/*"
-      />
-    </div>
-  );
-};
+      ),
+      [senderId, readMessages]
+    );
+
+    return (
+      <div className="flex flex-col h-full bg-white">
+        <div className="bg-gray-100 p-2 flex items-center border-b border-gray-200">
+          <img
+            src={DefaultProfilePic}
+            alt="Profile"
+            className="w-10 h-10 rounded-full mr-3"
+          />
+          <div>
+            <h2 className="font-semibold text-xs">{recipientName}</h2>
+            <p className="text-xs text-gray-500">
+              {isUserTyping(recipientId) ? "Typing..." : "Online"}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex-grow overflow-y-auto p-4">
+          {localMessages.map(renderMessage)}
+          <div ref={messagesEndRef} />
+        </div>
+
+        <form
+          onSubmit={handleSendMessage}
+          className="bg-white p-4 border-t border-gray-200"
+        >
+          <div className="relative">
+            <input
+              type="text"
+              value={inputMessage}
+              onChange={handleInputChange}
+              className="w-full bg-gray-100 border border-gray-300 rounded-md px-4 py-2 pr-20 focus:outline-none focus:ring-2 focus:ring-[#EF6144] placeholder-gray-400 placeholder:text-xs text-xs"
+              placeholder="Type your message here"
+            />
+            <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center space-x-2">
+              <button
+                type="button"
+                onClick={handleFileUpload}
+                className="focus:outline-none"
+              >
+                <img
+                  src={AttachmentIcon}
+                  alt="attachment-icon"
+                  className="w-6 h-6"
+                />
+              </button>
+              <button type="submit" className="focus:outline-none">
+                <img src={SendIcon} alt="send-icon" className="w-6 h-6" />
+              </button>
+            </div>
+          </div>
+        </form>
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileChange}
+          className="hidden"
+          accept="image/*,video/*"
+        />
+      </div>
+    );
+  }
+);
 
 export default ChatInterface;

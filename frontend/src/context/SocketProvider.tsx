@@ -1,5 +1,12 @@
-import React, { useCallback, useContext, useEffect, useState } from "react";
+import React, {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { io, Socket } from "socket.io-client";
+import { debounce } from "lodash";
 
 interface User {
   id: string;
@@ -29,6 +36,9 @@ interface ISocketContext {
   login: (user: User) => void;
   readMessages: Set<string>;
   markMessageAsRead: (messageId: string, recipientId: string) => void;
+  emitTyping: (recipientId: string) => void;
+  emitStopTyping: (recipientId: string) => void;
+  isUserTyping: (userId: string) => boolean;
 }
 
 const SocketContext = React.createContext<ISocketContext | null>(null);
@@ -45,21 +55,66 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
   const [users, setUsers] = useState<User[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [readMessages, setReadMessages] = useState<Set<string>>(new Set());
+  const [typingUsers, setTypingUsers] = useState<Map<string, boolean>>(
+    new Map()
+  );
 
-  const sendMessage: ISocketContext["sendMessage"] = useCallback(
-    (msg) => {
-      if (socket) {
-        socket.emit("chat:message", msg);
-      }
+  const sendMessage = useCallback(
+    (msg: Omit<Message, "id" | "timestamp" | "read">) => {
+      socket?.emit("chat:message", msg);
     },
     [socket]
   );
 
+  const isUserTyping = useCallback(
+    (userId: string) => typingUsers.has(userId),
+    [typingUsers]
+  );
+
+  const debouncedEmitTyping = useMemo(
+    () =>
+      debounce((recipientId: string) => {
+        if (socket && currentUser) {
+          socket.emit("chat:typing", { senderId: currentUser.id, recipientId });
+        }
+      }, 300),
+    [socket, currentUser]
+  );
+
+  const emitTyping = useCallback(
+    (recipientId: string) => {
+      debouncedEmitTyping(recipientId);
+    },
+    [debouncedEmitTyping]
+  );
+
+  const emitStopTyping = useCallback(
+    (recipientId: string) => {
+      if (socket && currentUser) {
+        socket.emit("chat:stopTyping", {
+          senderId: currentUser.id,
+          recipientId,
+        });
+      }
+    },
+    [socket, currentUser]
+  );
+
+  const onTypingStarted = useCallback(({ senderId }: { senderId: string }) => {
+    setTypingUsers((prev) => new Map(prev).set(senderId, true));
+  }, []);
+
+  const onTypingStopped = useCallback(({ senderId }: { senderId: string }) => {
+    setTypingUsers((prev) => {
+      const newMap = new Map(prev);
+      newMap.delete(senderId);
+      return newMap;
+    });
+  }, []);
+
   const onMessageReceived = useCallback((msg: Message) => {
     setMessages((prev) => {
-      // Check if the message already exists
-      const exists = prev.some((m) => m.id === msg.id);
-      if (!exists) {
+      if (!prev.some((m) => m.id === msg.id)) {
         return [...prev, msg];
       }
       return prev;
@@ -72,9 +127,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
 
   const markMessageAsRead = useCallback(
     (messageId: string, recipientId: string) => {
-      if (socket) {
-        socket.emit("message:read", { messageId, recipientId });
-      }
+      socket?.emit("message:read", { messageId, recipientId });
     },
     [socket]
   );
@@ -82,29 +135,21 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
   const login = useCallback(
     (user: User) => {
       setCurrentUser(user);
-      if (socket) {
-        socket.emit("user:join", user);
-      }
+      socket?.emit("user:join", user);
     },
     [socket]
   );
 
   const onUserLoggedIn = useCallback((newUser: User) => {
-    setUsers((prevUsers) => {
-      if (!prevUsers.some((user) => user.id === newUser.id)) {
-        return [...prevUsers, newUser];
-      }
-      return prevUsers;
-    });
+    setUsers((prev) =>
+      prev.some((user) => user.id === newUser.id) ? prev : [...prev, newUser]
+    );
   }, []);
 
   const onNewUser = useCallback((newUser: User) => {
-    setUsers((prevUsers) => {
-      if (!prevUsers.some((user) => user.id === newUser.id)) {
-        return [...prevUsers, newUser];
-      }
-      return prevUsers;
-    });
+    setUsers((prev) =>
+      prev.some((user) => user.id === newUser.id) ? prev : [...prev, newUser]
+    );
   }, []);
 
   useEffect(() => {
@@ -113,6 +158,8 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
     _socket.on("user:loggedIn", onUserLoggedIn);
     _socket.on("user:new", onNewUser);
     _socket.on("message:read", onMessageRead);
+    _socket.on("chat:typing", onTypingStarted);
+    _socket.on("chat:stopTyping", onTypingStopped);
 
     setSocket(_socket);
 
@@ -121,22 +168,48 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
       _socket.off("user:loggedIn", onUserLoggedIn);
       _socket.off("user:new", onNewUser);
       _socket.off("message:read", onMessageRead);
+      _socket.off("chat:typing", onTypingStarted);
+      _socket.off("chat:stopTyping", onTypingStopped);
       _socket.disconnect();
     };
-  }, [onMessageReceived, onUserLoggedIn, onNewUser, onMessageRead]);
+  }, [
+    onMessageReceived,
+    onUserLoggedIn,
+    onNewUser,
+    onMessageRead,
+    onTypingStarted,
+    onTypingStopped,
+  ]);
+
+  const contextValue = useMemo(
+    () => ({
+      sendMessage,
+      messages,
+      users,
+      currentUser,
+      login,
+      readMessages,
+      markMessageAsRead,
+      emitTyping,
+      emitStopTyping,
+      isUserTyping,
+    }),
+    [
+      sendMessage,
+      messages,
+      users,
+      currentUser,
+      login,
+      readMessages,
+      markMessageAsRead,
+      emitTyping,
+      emitStopTyping,
+      isUserTyping,
+    ]
+  );
 
   return (
-    <SocketContext.Provider
-      value={{
-        sendMessage,
-        messages,
-        users,
-        currentUser,
-        login,
-        readMessages,
-        markMessageAsRead,
-      }}
-    >
+    <SocketContext.Provider value={contextValue}>
       {children}
     </SocketContext.Provider>
   );
