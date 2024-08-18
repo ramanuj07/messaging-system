@@ -3,6 +3,8 @@ import AttachmentIcon from "../assets/AttachmentIcon.png";
 import SendIcon from "../assets/SendIcon.png";
 import DefaultProfilePic from "../assets/DefaultProfilePic.jpg";
 import { useSocket } from "../context/SocketProvider";
+import SingleTick from "../assets/SingleTick.png";
+import DoubleTick from "../assets/DoubleTick.png";
 
 interface ChatMessage {
   id: string;
@@ -23,7 +25,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   recipientId,
   recipientName,
 }) => {
-  const { sendMessage, messages } = useSocket();
+  const { sendMessage, messages, readMessages, markMessageAsRead } =
+    useSocket();
   const [inputMessage, setInputMessage] = useState("");
   const [localMessages, setLocalMessages] = useState<ChatMessage[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -46,6 +49,15 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     );
     setLocalMessages(filteredMessages);
   }, [messages, senderId, recipientId]);
+
+  useEffect(() => {
+    const unreadMessages = localMessages.filter(
+      (msg) => msg.senderId === recipientId && !readMessages.has(msg.id)
+    );
+    unreadMessages.forEach((msg) => {
+      markMessageAsRead(msg.id, msg.senderId);
+    });
+  }, [localMessages, recipientId, readMessages, markMessageAsRead]);
 
   const handleSendMessage = useCallback(
     (e: React.FormEvent) => {
@@ -95,10 +107,17 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
           }`}
         >
           {message.content}
+          {message.senderId === senderId && (
+            <img
+              src={readMessages.has(message.id) ? DoubleTick : SingleTick}
+              alt="message status"
+              className="inline-block ml-1 w-4 h-4"
+            />
+          )}
         </div>
       </div>
     ),
-    [senderId]
+    [senderId, readMessages]
   );
 
   return (

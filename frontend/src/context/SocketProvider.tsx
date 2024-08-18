@@ -27,6 +27,8 @@ interface ISocketContext {
   users: User[];
   currentUser: User | null;
   login: (user: User) => void;
+  readMessages: Set<string>;
+  markMessageAsRead: (messageId: string, recipientId: string) => void;
 }
 
 const SocketContext = React.createContext<ISocketContext | null>(null);
@@ -42,26 +44,40 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [readMessages, setReadMessages] = useState<Set<string>>(new Set());
 
   const sendMessage: ISocketContext["sendMessage"] = useCallback(
     (msg) => {
       if (socket) {
-        const newMessage: Message = {
-          id: Date.now().toString(),
-          timestamp: new Date().toISOString(),
-          read: false,
-          ...msg,
-        };
-        socket.emit("chat:message", newMessage);
-        setMessages((prev) => [...prev, newMessage]);
+        socket.emit("chat:message", msg);
       }
     },
     [socket]
   );
 
   const onMessageReceived = useCallback((msg: Message) => {
-    setMessages((prev) => [...prev, msg]);
+    setMessages((prev) => {
+      // Check if the message already exists
+      const exists = prev.some((m) => m.id === msg.id);
+      if (!exists) {
+        return [...prev, msg];
+      }
+      return prev;
+    });
   }, []);
+
+  const onMessageRead = useCallback((data: { messageId: string }) => {
+    setReadMessages((prev) => new Set(prev).add(data.messageId));
+  }, []);
+
+  const markMessageAsRead = useCallback(
+    (messageId: string, recipientId: string) => {
+      if (socket) {
+        socket.emit("message:read", { messageId, recipientId });
+      }
+    },
+    [socket]
+  );
 
   const login = useCallback(
     (user: User) => {
@@ -96,6 +112,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
     _socket.on("chat:message", onMessageReceived);
     _socket.on("user:loggedIn", onUserLoggedIn);
     _socket.on("user:new", onNewUser);
+    _socket.on("message:read", onMessageRead);
 
     setSocket(_socket);
 
@@ -103,13 +120,22 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
       _socket.off("chat:message", onMessageReceived);
       _socket.off("user:loggedIn", onUserLoggedIn);
       _socket.off("user:new", onNewUser);
+      _socket.off("message:read", onMessageRead);
       _socket.disconnect();
     };
-  }, [onMessageReceived, onUserLoggedIn, onNewUser]);
+  }, [onMessageReceived, onUserLoggedIn, onNewUser, onMessageRead]);
 
   return (
     <SocketContext.Provider
-      value={{ sendMessage, messages, users, currentUser, login }}
+      value={{
+        sendMessage,
+        messages,
+        users,
+        currentUser,
+        login,
+        readMessages,
+        markMessageAsRead,
+      }}
     >
       {children}
     </SocketContext.Provider>

@@ -197,6 +197,15 @@ class SocketService {
         .returning();
       console.log("Message marked as read", updatedMessage);
 
+      const senderSocketId = this.userSocketMap.get(
+        updatedMessage.senderId.toString()
+      );
+      if (senderSocketId) {
+        this._io
+          .to(senderSocketId)
+          .emit("message:read", { messageId: updatedMessage.id.toString() });
+      }
+
       return {
         ...updatedMessage,
         id: updatedMessage.id.toString(),
