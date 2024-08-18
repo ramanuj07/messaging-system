@@ -86,7 +86,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
         reader.onload = (event) => {
           const buffer = event.target?.result as ArrayBuffer;
           socket.emit("chat:file", {
-            file: new Uint8Array(buffer),
+            file: buffer,
             fileName,
             fileType,
             senderId: currentUser.id,

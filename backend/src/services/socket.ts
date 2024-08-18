@@ -2,7 +2,7 @@ import { Server, Socket } from "socket.io";
 import { db } from "../db/db";
 import { messages } from "../db/schema";
 import { eq, and, lt, desc } from "drizzle-orm";
-import { S3 } from "aws-sdk";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 
 interface User {
   id: string;
@@ -32,7 +32,7 @@ class SocketService {
   private _io: Server;
   private connectedUsers: Map<string, User> = new Map();
   private userSocketMap: Map<string, string> = new Map();
-  private s3: S3;
+  private s3Client: S3Client;
 
   constructor() {
     console.log("Initialised socket server");
@@ -42,12 +42,11 @@ class SocketService {
         origin: "*",
       },
     });
-    this.s3 = new S3({
-      endpoint: `https://${process.env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-      region: "auto",
+    this.s3Client = new S3Client({
+      region: process.env.AWS_REGION,
       credentials: {
-        accessKeyId: process.env.CLOUDFLARE_R2_API_TOKEN!,
-        secretAccessKey: process.env.CLOUDFLARE_R2_API_TOKEN!,
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
       },
     });
   }
@@ -99,7 +98,7 @@ class SocketService {
         try {
           const { file, fileName, fileType, senderId, recipientId } = data;
 
-          // Save the file to Cloudflare R2
+          // Save the file to S3
           const fileUrl = await this.saveFile(file, fileName, fileType);
 
           const message: Omit<Message, "id" | "timestamp" | "read"> = {
@@ -178,26 +177,26 @@ class SocketService {
   }
 
   private async saveFile(
-    file: Buffer,
+    file: ArrayBuffer,
     fileName: string,
     fileType: "image" | "video"
   ): Promise<string> {
     try {
-      const bucketName = process.env.CLOUDFLARE_R2_BUCKET_NAME!;
+      const bucketName = process.env.AWS_S3_BUCKET_NAME!;
       const fileKey = `${Date.now()}-${fileName}`;
       const contentType = fileType === "image" ? "image/jpeg" : "video/mp4";
 
-      const params = {
+      const command = new PutObjectCommand({
         Bucket: bucketName,
         Key: fileKey,
-        Body: file,
+        Body: Buffer.from(file),
         ContentType: contentType,
-      };
+      });
 
-      const uploadResult = await this.s3.upload(params).promise();
+      await this.s3Client.send(command);
 
       // Construct the public URL for the uploaded file
-      const fileUrl = uploadResult.Location;
+      const fileUrl = `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileKey}`;
 
       console.log("File uploaded successfully:", fileUrl);
       return fileUrl;
