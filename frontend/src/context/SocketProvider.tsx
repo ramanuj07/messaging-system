@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import { io, Socket } from "socket.io-client";
 import { debounce } from "lodash";
+import axios from "axios";
 
 interface User {
   id: string;
@@ -39,6 +40,7 @@ interface ISocketContext {
   emitTyping: (recipientId: string) => void;
   emitStopTyping: (recipientId: string) => void;
   isUserTyping: (userId: string) => boolean;
+  fetchChatMessages: (otherUserId: string) => Promise<void>;
 }
 
 const SocketContext = React.createContext<ISocketContext | null>(null);
@@ -132,13 +134,56 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
     [socket]
   );
 
+  const fetchChatMessages = useCallback(
+    async (otherUserId: string) => {
+      if (currentUser) {
+        try {
+          const response = await axios.get(
+            `http://localhost:8000/messages/${currentUser.id}/${otherUserId}`,
+            {
+              headers: {
+                Authorization: `Bearer ${localStorage.getItem("token")}`,
+              },
+            }
+          );
+          setMessages((prevMessages) => [...prevMessages, ...response.data]);
+        } catch (error) {
+          console.error("Failed to fetch chat messages:", error);
+        }
+      }
+    },
+    [currentUser]
+  );
+
   const login = useCallback(
     (user: User) => {
       setCurrentUser(user);
       socket?.emit("user:join", user);
+      localStorage.setItem("currentUser", JSON.stringify(user));
     },
     [socket]
   );
+
+  const validateToken = useCallback(async () => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      try {
+        const response = await axios.get(
+          "http://localhost:8000/auth/validate-token",
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+        if (response.data.valid) {
+          setCurrentUser(response.data.user);
+          socket?.emit("user:join", response.data.user);
+        }
+      } catch (error) {
+        console.error("Token validation failed:", error);
+        localStorage.removeItem("token");
+      }
+    }
+  }, [socket]);
 
   const onUserLoggedIn = useCallback((newUser: User) => {
     setUsers((prev) =>
@@ -151,6 +196,10 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
       prev.some((user) => user.id === newUser.id) ? prev : [...prev, newUser]
     );
   }, []);
+
+  useEffect(() => {
+    validateToken();
+  }, [validateToken]);
 
   useEffect(() => {
     const _socket = io("http://localhost:8000");
@@ -193,6 +242,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
       emitTyping,
       emitStopTyping,
       isUserTyping,
+      fetchChatMessages,
     }),
     [
       sendMessage,
@@ -205,6 +255,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
       emitTyping,
       emitStopTyping,
       isUserTyping,
+      fetchChatMessages,
     ]
   );
 

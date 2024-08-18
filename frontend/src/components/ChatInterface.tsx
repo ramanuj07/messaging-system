@@ -36,6 +36,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = React.memo(
       emitTyping,
       emitStopTyping,
       isUserTyping,
+      fetchChatMessages,
     } = useSocket();
     const [inputMessage, setInputMessage] = useState("");
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -62,6 +63,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = React.memo(
     useEffect(() => {
       scrollToBottom();
     }, [localMessages, scrollToBottom]);
+
+    useEffect(() => {
+      fetchChatMessages(recipientId);
+    }, [fetchChatMessages, recipientId]);
 
     useEffect(() => {
       const unreadMessages = localMessages.filter(
