@@ -5,6 +5,7 @@ interface ChatProps {
   name: string;
   lastMessage: string;
   lastMessageTime: string;
+  onClick: () => void;
 }
 
 const UserChat: React.FC<ChatProps> = ({
@@ -12,10 +13,14 @@ const UserChat: React.FC<ChatProps> = ({
   name,
   lastMessage,
   lastMessageTime,
+  onClick,
 }) => {
   return (
     <div>
-      <div className="flex items-center p-4 hover:bg-gray-100 cursor-pointer mt-2">
+      <div
+        className="flex items-center p-4 hover:bg-gray-100 cursor-pointer mt-2"
+        onClick={onClick}
+      >
         <img
           src={profilePic}
           alt={`${name} profile`}

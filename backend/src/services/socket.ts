@@ -22,6 +22,7 @@ interface Message {
 class SocketService {
   private _io: Server;
   private connectedUsers: Map<string, User> = new Map();
+  private userSocketMap: Map<string, string> = new Map();
 
   constructor() {
     console.log("Initialised socket server");
@@ -42,12 +43,17 @@ class SocketService {
 
       socket.on("user:join", (user: User) => {
         this.connectedUsers.set(socket.id, user);
+        this.userSocketMap.set(user.id, socket.id);
         this.updateOnlineUsers();
         socket.broadcast.emit("user:new", user);
         console.log(`User joined: ${user.username}`);
       });
 
       socket.on("disconnect", () => {
+        const user = this.connectedUsers.get(socket.id);
+        if (user) {
+          this.userSocketMap.delete(user.id);
+        }
         this.connectedUsers.delete(socket.id);
         this.updateOnlineUsers();
         console.log(`User disconnected: ${socket.id}`);
@@ -58,7 +64,7 @@ class SocketService {
         try {
           const savedMessage = await this.saveMessage(message);
           if (savedMessage) {
-            this.sendMessage(savedMessage);
+            this.broadcastMessage(savedMessage);
           } else {
             socket.emit("error", "Failed to save message");
           }
@@ -164,8 +170,22 @@ class SocketService {
     }
   }
 
-  private sendMessage(message: Message) {
-    this._io.to(message.recipientId).emit("chat:message", message);
+  private broadcastMessage(message: Message) {
+    // Send to sender
+    const senderSocketId = this.userSocketMap.get(message.senderId);
+    if (senderSocketId) {
+      this._io.to(senderSocketId).emit("chat:message", message);
+    }
+
+    // Send to recipient
+    const recipientSocketId = this.userSocketMap.get(message.recipientId);
+    if (recipientSocketId) {
+      this._io.to(recipientSocketId).emit("chat:message", message);
+    }
+
+    console.log(
+      `Message broadcasted to sender ${message.senderId} and recipient ${message.recipientId}`
+    );
   }
 
   private async markMessageAsRead(messageId: string) {

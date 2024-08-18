@@ -7,7 +7,9 @@ import { useSocket } from "../context/SocketProvider";
 interface ChatMessage {
   id: string;
   senderId: string;
+  recipientId: string;
   content: string;
+  timestamp: string;
 }
 
 interface ChatInterfaceProps {
@@ -23,6 +25,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
 }) => {
   const { sendMessage, messages } = useSocket();
   const [inputMessage, setInputMessage] = useState("");
+  const [localMessages, setLocalMessages] = useState<ChatMessage[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -32,19 +35,30 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, scrollToBottom]);
+  }, [localMessages, scrollToBottom]);
+
+  useEffect(() => {
+    const filteredMessages = messages.filter(
+      (message) =>
+        (message.senderId === senderId &&
+          message.recipientId === recipientId) ||
+        (message.senderId === recipientId && message.recipientId === senderId)
+    );
+    setLocalMessages(filteredMessages);
+  }, [messages, senderId, recipientId]);
 
   const handleSendMessage = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
       if (inputMessage.trim() === "") return;
 
-      sendMessage({
+      const newMessage: Omit<ChatMessage, "id" | "timestamp"> = {
         senderId: senderId,
         recipientId: recipientId,
         content: inputMessage.trim(),
-      });
+      };
 
+      sendMessage(newMessage);
       setInputMessage("");
     },
     [inputMessage, sendMessage, senderId, recipientId]
@@ -70,12 +84,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
       <div
         key={message.id}
         className={`mb-4 ${
-          message.senderId === "user" ? "text-right" : "text-left"
+          message.senderId === senderId ? "text-right" : "text-left"
         }`}
       >
         <div
           className={`inline-block p-2 text-xs rounded-lg ${
-            message.senderId === "user"
+            message.senderId === senderId
               ? "bg-[#EF6144] text-white"
               : "bg-gray-100 text-gray-800"
           }`}
@@ -84,7 +98,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         </div>
       </div>
     ),
-    []
+    [senderId]
   );
 
   return (
@@ -102,7 +116,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
       </div>
 
       <div className="flex-grow overflow-y-auto p-4">
-        {messages.map(renderMessage)}
+        {localMessages.map(renderMessage)}
         <div ref={messagesEndRef} />
       </div>
 

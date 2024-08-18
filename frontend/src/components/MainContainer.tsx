@@ -1,8 +1,11 @@
+import { useState } from "react";
 import AllUsersContainer from "./AllUsersContainer";
 import Header from "./Header";
 import PersonalChatContainer from "./PersonalChatContainer";
 
 const MainContainer = () => {
+  const [selectedChat, setSelectedChat] = useState<string | null>(null);
+
   return (
     <div className="h-screen">
       <div className="flex-shrink-0">
@@ -11,11 +14,11 @@ const MainContainer = () => {
 
       <div className="grid grid-cols-12 h-full">
         <div className="col-span-4 border-r border-gray-300">
-          <AllUsersContainer />
+          <AllUsersContainer onSelectChat={setSelectedChat} />
         </div>
 
         <div className="col-span-8">
-          <PersonalChatContainer />
+          <PersonalChatContainer selectedChat={selectedChat} />
         </div>
       </div>
     </div>
