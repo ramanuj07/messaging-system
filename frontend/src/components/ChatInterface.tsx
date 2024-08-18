@@ -18,6 +18,9 @@ interface ChatMessage {
   recipientId: string;
   content: string;
   timestamp: string;
+  read: boolean;
+  fileUrl?: string | null;
+  fileType?: "image" | "video" | null;
 }
 
 interface ChatInterfaceProps {
@@ -30,6 +33,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = React.memo(
   ({ senderId, recipientId, recipientName }) => {
     const {
       sendMessage,
+      sendFile,
       messages,
       readMessages,
       markMessageAsRead,
@@ -101,7 +105,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = React.memo(
         e.preventDefault();
         if (inputMessage.trim() === "") return;
 
-        const newMessage: Omit<ChatMessage, "id" | "timestamp"> = {
+        const newMessage: Omit<ChatMessage, "id" | "timestamp" | "read"> = {
           senderId: senderId,
           recipientId: recipientId,
           content: inputMessage.trim(),
@@ -125,11 +129,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = React.memo(
       (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-          // Handle file upload logic here
-          console.log("File selected:", file.name);
+          const fileType = file.type.startsWith("image/") ? "image" : "video";
+          sendFile(file, file.name, fileType, recipientId);
         }
       },
-      []
+      [sendFile, recipientId]
     );
 
     const renderMessage = useCallback(
@@ -147,7 +151,25 @@ const ChatInterface: React.FC<ChatInterfaceProps> = React.memo(
                 : "bg-gray-100 text-gray-800"
             }`}
           >
-            {message.content}
+            {message.fileUrl && message.fileType ? (
+              message.fileType === "image" ? (
+                <img
+                  src={message.fileUrl}
+                  alt={message.content}
+                  className="max-w-xs max-h-48 rounded"
+                />
+              ) : message.fileType === "video" ? (
+                <video
+                  src={message.fileUrl}
+                  controls
+                  className="max-w-xs max-h-48 rounded"
+                />
+              ) : (
+                message.content
+              )
+            ) : (
+              message.content
+            )}
             {message.senderId === senderId && (
               <img
                 src={readMessages.has(message.id) ? DoubleTick : SingleTick}

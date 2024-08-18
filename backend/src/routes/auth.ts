@@ -2,7 +2,6 @@ import express, { Request, Response } from "express";
 import { register, login, getAllUsers } from "../services/auth";
 import { authenticateToken } from "../middleware/auth";
 import SocketService from "../services/socket";
-import { getMessagesBetweenUsers } from "../services/messages";
 
 const router = express.Router();
 const socketService = new SocketService();
@@ -51,21 +50,6 @@ router.get(
       res.json({ valid: true, user: userRequest.user });
     } else {
       res.status(401).json({ valid: false, message: "User not authenticated" });
-    }
-  }
-);
-
-router.get(
-  "/messages/:userId1/:userId2",
-  authenticateToken,
-  async (req: Request, res: Response) => {
-    try {
-      const userId1 = parseInt(req.params.userId1);
-      const userId2 = parseInt(req.params.userId2);
-      const messages = await getMessagesBetweenUsers(userId1, userId2);
-      res.json(messages);
-    } catch (error) {
-      res.status(500).json({ error: (error as Error).message });
     }
   }
 );

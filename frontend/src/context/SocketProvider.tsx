@@ -31,6 +31,12 @@ interface Message {
 
 interface ISocketContext {
   sendMessage: (msg: Omit<Message, "id" | "timestamp" | "read">) => void;
+  sendFile: (
+    file: File,
+    fileName: string,
+    fileType: "image" | "video",
+    recipientId: string
+  ) => void;
   messages: Message[];
   users: User[];
   currentUser: User | null;
@@ -66,6 +72,31 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
       socket?.emit("chat:message", msg);
     },
     [socket]
+  );
+
+  const sendFile = useCallback(
+    (
+      file: File,
+      fileName: string,
+      fileType: "image" | "video",
+      recipientId: string
+    ) => {
+      if (socket && currentUser) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const buffer = event.target?.result as ArrayBuffer;
+          socket.emit("chat:file", {
+            file: new Uint8Array(buffer),
+            fileName,
+            fileType,
+            senderId: currentUser.id,
+            recipientId,
+          });
+        };
+        reader.readAsArrayBuffer(file);
+      }
+    },
+    [socket, currentUser]
   );
 
   const isUserTyping = useCallback(
@@ -233,6 +264,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
   const contextValue = useMemo(
     () => ({
       sendMessage,
+      sendFile,
       messages,
       users,
       currentUser,
@@ -246,6 +278,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
     }),
     [
       sendMessage,
+      sendFile,
       messages,
       users,
       currentUser,
