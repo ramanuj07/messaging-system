@@ -35,7 +35,6 @@ class SocketService {
   private s3Client: S3Client;
 
   constructor() {
-    console.log("Initialised socket server");
     this._io = new Server({
       cors: {
         allowedHeaders: ["*"],
@@ -53,11 +52,8 @@ class SocketService {
 
   public initListeners() {
     const io = this._io;
-    console.log("Initialised socket listeners");
 
     io.on("connection", (socket: Socket) => {
-      console.log("New socket connected", socket.id);
-
       socket.on("user:join", (user: User) => {
         this.handleUserJoin(socket, user);
       });
@@ -67,7 +63,6 @@ class SocketService {
       });
 
       socket.on("chat:message", async (message: Message) => {
-        console.log("New message received", message);
         try {
           const savedMessage = await this.saveMessage(message);
           if (savedMessage) {
@@ -106,7 +101,6 @@ class SocketService {
             socket.emit("error", "Failed to save file message");
           }
         } catch (error) {
-          console.error("Error in chat:file handler:", error);
           socket.emit("error", "An error occurred while processing the file");
         }
       });
@@ -163,7 +157,6 @@ class SocketService {
     this.updateOnlineUsers();
     socket.broadcast.emit("user:new", user);
     this._io.emit("user:online", user.id);
-    console.log(`User joined: ${user.username}`);
   }
 
   private handleUserDisconnect(socket: Socket) {
@@ -174,13 +167,11 @@ class SocketService {
     }
     this.connectedUsers.delete(socket.id);
     this.updateOnlineUsers();
-    console.log(`User disconnected: ${socket.id}`);
   }
 
   public handleUserLogin(user: User) {
     this._io.emit("user:loggedIn", user);
     this._io.emit("user:online", user.id);
-    console.log(`User logged in: ${user.username}`);
   }
 
   private updateOnlineUsers() {
@@ -214,7 +205,6 @@ class SocketService {
       // Construct the public URL for the uploaded file
       const fileUrl = `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileKey}`;
 
-      console.log("File uploaded successfully:", fileUrl);
       return fileUrl;
     } catch (error) {
       console.error("Error uploading file to R2:", error);
@@ -236,8 +226,6 @@ class SocketService {
           fileType: message.fileType || null,
         })
         .returning();
-
-      console.log("Message saved to database", savedMessage);
 
       return {
         id: savedMessage.id.toString(),
@@ -267,10 +255,6 @@ class SocketService {
     if (recipientSocketId) {
       this._io.to(recipientSocketId).emit("chat:message", message);
     }
-
-    console.log(
-      `Message broadcasted to sender ${message.senderId} and recipient ${message.recipientId}`
-    );
   }
 
   private async markMessageAsRead(messageId: string) {
@@ -280,7 +264,6 @@ class SocketService {
         .set({ read: true })
         .where(eq(messages.id, parseInt(messageId)))
         .returning();
-      console.log("Message marked as read", updatedMessage);
 
       const senderSocketId = this.userSocketMap.get(
         updatedMessage.senderId.toString()

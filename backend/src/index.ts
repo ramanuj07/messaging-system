@@ -4,6 +4,8 @@ import SocketService from "./services/socket";
 import authRoutes from "./routes/auth";
 import cors from "cors";
 
+const BASE_FRONTEND_URL = process.env.BASE_FRONTEND_URL as string;
+
 async function init() {
   const app = express();
   const httpServer = http.createServer(app);
@@ -14,7 +16,7 @@ async function init() {
 
   app.use(
     cors({
-      origin: "http://localhost:5173",
+      origin: `${BASE_FRONTEND_URL}`,
       credentials: true,
     })
   );

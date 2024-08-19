@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { useSocket } from "../context/SocketProvider";
+const BACKEND_API_BASE_URL = import.meta.env.BACKEND_API_BASE_URL;
 
 axios.defaults.withCredentials = true;
 
@@ -14,7 +15,7 @@ const Login: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await axios.post("http://localhost:8000/auth/login", {
+      const response = await axios.post(`${BACKEND_API_BASE_URL}/auth/login`, {
         email,
         password,
       });
@@ -22,7 +23,7 @@ const Login: React.FC = () => {
       const user = {
         id: response.data.user.id.toString(),
         username: response.data.user.username,
-        token: response.data.token, // Include the token in the user object
+        token: response.data.token,
       };
 
       localStorage.setItem("token", response.data.token);

@@ -21,8 +21,6 @@ export const register = async (
     })
     .returning();
 
-  console.log(JWT_SECRET);
-
   const token = jwt.sign({ id: user.id }, JWT_SECRET as string, {
     expiresIn: "1h",
   });

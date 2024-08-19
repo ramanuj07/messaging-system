@@ -8,6 +8,7 @@ import React, {
 import { io, Socket } from "socket.io-client";
 import { debounce } from "lodash";
 import axios from "axios";
+const BACKEND_API_BASE_URL = import.meta.env.BACKEND_API_BASE_URL;
 
 interface User {
   id: string;
@@ -219,7 +220,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
     if (token && storedUser) {
       try {
         const response = await axios.get(
-          "http://localhost:8000/auth/validate-token",
+          `${BACKEND_API_BASE_URL}/auth/validate-token`,
           {
             headers: { Authorization: `Bearer ${token}` },
           }
