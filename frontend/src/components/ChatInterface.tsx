@@ -41,9 +41,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = React.memo(
       isUserOnline,
     } = useSocket();
     const [inputMessage, setInputMessage] = useState("");
-    const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const markedMessagesRef = useRef<Set<string>>(new Set());
+    const chatContainerRef = useRef<HTMLDivElement>(null);
+    const [isAtBottom, setIsAtBottom] = useState(true);
 
     const localMessages = useMemo(
       () =>
@@ -57,13 +58,34 @@ const ChatInterface: React.FC<ChatInterfaceProps> = React.memo(
       [messages, senderId, recipientId]
     );
 
-    const scrollToBottom = useCallback(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
+      const chatContainer = chatContainerRef.current;
+      if (chatContainer) {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      }
+    }, []);
+
+    const handleScroll = useCallback(() => {
+      const chatContainer = chatContainerRef.current;
+      if (chatContainer) {
+        const { scrollTop, scrollHeight, clientHeight } = chatContainer;
+        const bottomThreshold = 100;
+        setIsAtBottom(
+          scrollHeight - scrollTop - clientHeight < bottomThreshold
+        );
+      }
     }, []);
 
     useEffect(() => {
       scrollToBottom();
-    }, [localMessages, scrollToBottom]);
+    }, []);
+
+    useEffect(() => {
+      if (isAtBottom) {
+        scrollToBottom("smooth");
+      }
+    }, [localMessages, isAtBottom, scrollToBottom]);
 
     useEffect(() => {
       fetchChatMessages(recipientId);
@@ -102,8 +124,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = React.memo(
 
         sendMessage(newMessage);
         setInputMessage("");
+        scrollToBottom("smooth");
       },
-      [inputMessage, sendMessage, senderId, recipientId]
+      [inputMessage, sendMessage, senderId, recipientId, scrollToBottom]
     );
 
     const handleFileUpload = useCallback(() => {
@@ -184,9 +207,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = React.memo(
           </div>
         </div>
 
-        <div className="flex-grow overflow-y-auto p-4">
+        <div
+          ref={chatContainerRef}
+          className="flex-grow overflow-y-auto p-4"
+          onScroll={handleScroll}
+          style={{ maxHeight: "calc(100vh - 120px)" }} // Adjust this value as needed
+        >
           {localMessages.map(renderMessage)}
-          <div ref={messagesEndRef} />
         </div>
 
         <form
