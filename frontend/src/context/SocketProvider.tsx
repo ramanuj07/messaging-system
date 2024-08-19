@@ -12,6 +12,7 @@ import axios from "axios";
 interface User {
   id: string;
   username: string;
+  token: string;
 }
 
 interface SocketProviderProps {
@@ -45,6 +46,7 @@ interface ISocketContext {
   markMessageAsRead: (messageId: string, recipientId: string) => void;
   emitTyping: (recipientId: string) => void;
   emitStopTyping: (recipientId: string) => void;
+  isUserOnline: (userId: string) => boolean;
   isUserTyping: (userId: string) => boolean;
   fetchChatMessages: (otherUserId: string) => Promise<void>;
 }
@@ -58,6 +60,7 @@ export const useSocket = () => {
 };
 
 export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
   const [socket, setSocket] = useState<Socket>();
   const [messages, setMessages] = useState<Message[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -65,6 +68,19 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
   const [readMessages, setReadMessages] = useState<Set<string>>(new Set());
   const [typingUsers, setTypingUsers] = useState<Map<string, boolean>>(
     new Map()
+  );
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem("currentUser");
+    if (storedUser) {
+      const parsedUser = JSON.parse(storedUser);
+      setCurrentUser(parsedUser);
+    }
+  }, []);
+
+  const isUserOnline = useCallback(
+    (userId: string) => onlineUsers.has(userId),
+    [onlineUsers]
   );
 
   const sendMessage = useCallback(
@@ -191,13 +207,16 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
       setCurrentUser(user);
       socket?.emit("user:join", user);
       localStorage.setItem("currentUser", JSON.stringify(user));
+      localStorage.setItem("token", user.token);
     },
     [socket]
   );
 
   const validateToken = useCallback(async () => {
     const token = localStorage.getItem("token");
-    if (token) {
+    const storedUser = localStorage.getItem("currentUser");
+
+    if (token && storedUser) {
       try {
         const response = await axios.get(
           "http://localhost:8000/auth/validate-token",
@@ -206,12 +225,18 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
           }
         );
         if (response.data.valid) {
-          setCurrentUser(response.data.user);
-          socket?.emit("user:join", response.data.user);
+          const parsedUser = JSON.parse(storedUser);
+          setCurrentUser(parsedUser);
+          socket?.emit("user:join", parsedUser);
+        } else {
+          // Token is invalid, clear localStorage
+          localStorage.removeItem("token");
+          localStorage.removeItem("currentUser");
         }
       } catch (error) {
         console.error("Token validation failed:", error);
         localStorage.removeItem("token");
+        localStorage.removeItem("currentUser");
       }
     }
   }, [socket]);
@@ -234,6 +259,21 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
 
   useEffect(() => {
     const _socket = io("http://localhost:8000");
+    _socket.on("user:online", (userId: string) => {
+      setOnlineUsers((prev) => new Set(prev).add(userId));
+    });
+
+    _socket.on("user:offline", (userId: string) => {
+      setOnlineUsers((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(userId);
+        return newSet;
+      });
+    });
+
+    _socket.on("users:online", (onlineUserIds: string[]) => {
+      setOnlineUsers(new Set(onlineUserIds));
+    });
     _socket.on("chat:message", onMessageReceived);
     _socket.on("user:loggedIn", onUserLoggedIn);
     _socket.on("user:new", onNewUser);
@@ -244,6 +284,8 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
     setSocket(_socket);
 
     return () => {
+      _socket.off("user:online");
+      _socket.off("user:offline");
       _socket.off("chat:message", onMessageReceived);
       _socket.off("user:loggedIn", onUserLoggedIn);
       _socket.off("user:new", onNewUser);
@@ -275,6 +317,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
       emitStopTyping,
       isUserTyping,
       fetchChatMessages,
+      isUserOnline,
     }),
     [
       sendMessage,
@@ -289,6 +332,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
       emitStopTyping,
       isUserTyping,
       fetchChatMessages,
+      isUserOnline,
     ]
   );
 

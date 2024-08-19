@@ -18,11 +18,16 @@ const Login: React.FC = () => {
         email,
         password,
       });
-      localStorage.setItem("token", response.data.token);
-      login({
+
+      const user = {
         id: response.data.user.id.toString(),
         username: response.data.user.username,
-      });
+        token: response.data.token, // Include the token in the user object
+      };
+
+      localStorage.setItem("token", response.data.token);
+      localStorage.setItem("currentUser", JSON.stringify(user));
+      login(user);
       navigate("/chats");
     } catch (error) {
       console.error("Login failed:", error);

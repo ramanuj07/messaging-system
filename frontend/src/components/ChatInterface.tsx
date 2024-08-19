@@ -37,15 +37,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = React.memo(
       messages,
       readMessages,
       markMessageAsRead,
-      emitTyping,
-      emitStopTyping,
-      isUserTyping,
       fetchChatMessages,
+      isUserOnline,
     } = useSocket();
     const [inputMessage, setInputMessage] = useState("");
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const typingTimeoutRef = useRef<number | null>(null);
     const markedMessagesRef = useRef<Set<string>>(new Set());
 
     const localMessages = useMemo(
@@ -88,16 +85,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = React.memo(
     const handleInputChange = useCallback(
       (e: React.ChangeEvent<HTMLInputElement>) => {
         setInputMessage(e.target.value);
-        emitTyping(recipientId);
-
-        if (typingTimeoutRef.current !== null) {
-          clearTimeout(typingTimeoutRef.current);
-        }
-        typingTimeoutRef.current = window.setTimeout(() => {
-          emitStopTyping(recipientId);
-        }, 3000);
       },
-      [emitTyping, emitStopTyping, recipientId]
+      []
     );
 
     const handleSendMessage = useCallback(
@@ -113,12 +102,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = React.memo(
 
         sendMessage(newMessage);
         setInputMessage("");
-        emitStopTyping(recipientId);
-        if (typingTimeoutRef.current !== null) {
-          clearTimeout(typingTimeoutRef.current);
-        }
       },
-      [inputMessage, sendMessage, senderId, recipientId, emitStopTyping]
+      [inputMessage, sendMessage, senderId, recipientId]
     );
 
     const handleFileUpload = useCallback(() => {
@@ -194,7 +179,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = React.memo(
           <div>
             <h2 className="font-semibold text-xs">{recipientName}</h2>
             <p className="text-xs text-gray-500">
-              {isUserTyping(recipientId) ? "Typing..." : "Online"}
+              {isUserOnline(recipientId) ? "Online" : "Offline"}
             </p>
           </div>
         </div>

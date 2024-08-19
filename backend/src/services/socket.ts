@@ -59,21 +59,11 @@ class SocketService {
       console.log("New socket connected", socket.id);
 
       socket.on("user:join", (user: User) => {
-        this.connectedUsers.set(socket.id, user);
-        this.userSocketMap.set(user.id, socket.id);
-        this.updateOnlineUsers();
-        socket.broadcast.emit("user:new", user);
-        console.log(`User joined: ${user.username}`);
+        this.handleUserJoin(socket, user);
       });
 
       socket.on("disconnect", () => {
-        const user = this.connectedUsers.get(socket.id);
-        if (user) {
-          this.userSocketMap.delete(user.id);
-        }
-        this.connectedUsers.delete(socket.id);
-        this.updateOnlineUsers();
-        console.log(`User disconnected: ${socket.id}`);
+        this.handleUserDisconnect(socket);
       });
 
       socket.on("chat:message", async (message: Message) => {
@@ -167,9 +157,35 @@ class SocketService {
     });
   }
 
+  private handleUserJoin(socket: Socket, user: User) {
+    this.connectedUsers.set(socket.id, user);
+    this.userSocketMap.set(user.id, socket.id);
+    this.updateOnlineUsers();
+    socket.broadcast.emit("user:new", user);
+    this._io.emit("user:online", user.id);
+    console.log(`User joined: ${user.username}`);
+  }
+
+  private handleUserDisconnect(socket: Socket) {
+    const user = this.connectedUsers.get(socket.id);
+    if (user) {
+      this.userSocketMap.delete(user.id);
+      this._io.emit("user:offline", user.id);
+    }
+    this.connectedUsers.delete(socket.id);
+    this.updateOnlineUsers();
+    console.log(`User disconnected: ${socket.id}`);
+  }
+
   public handleUserLogin(user: User) {
     this._io.emit("user:loggedIn", user);
+    this._io.emit("user:online", user.id);
     console.log(`User logged in: ${user.username}`);
+  }
+
+  private updateOnlineUsers() {
+    const onlineUserIds = this.getAllConnectedUsers().map((user) => user.id);
+    this._io.emit("users:online", onlineUserIds);
   }
 
   public getAllConnectedUsers(): User[] {
@@ -204,11 +220,6 @@ class SocketService {
       console.error("Error uploading file to R2:", error);
       throw new Error("Failed to upload file");
     }
-  }
-
-  private updateOnlineUsers() {
-    const onlineUsers = Array.from(this.connectedUsers.values());
-    this._io.emit("users:online", onlineUsers);
   }
 
   private async saveMessage(
